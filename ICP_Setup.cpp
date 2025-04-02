@@ -51,23 +51,6 @@ void setupIPC() {
     std::cout << "- Message Queue ID: " << msgid << "\n";
 }
 
-// Cleanup IPC components
-void cleanupIPC() {
-    // Remove shared memory
-    int shmid = shmget(SHM_KEY, sizeof(Intersection), 0666);
-    if (shmctl(shmid, IPC_RMID, NULL) == -1) {
-        perror("shmctl remove failed");
-    }
-
-    // Remove message queue
-    int msgid = msgget(MSG_Q_KEY, 0666);
-    if (msgctl(msgid, IPC_RMID, NULL) == -1) {
-        perror("msgctl remove failed");
-    }
-
-    std::cout << "IPC components cleaned up\n";
-}
-
 int main() {
     std::cout << "Setting up mock train system IPC...\n";
     
