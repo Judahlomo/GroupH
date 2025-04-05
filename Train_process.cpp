@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
         request_intersection(intersection);
         wait_for_grant();
 
-        // TODO: Simulate traversal delay (e.g., sleep(2))
+        // TODO: Simulate traversal delay (e.g., sleep(2)
         sleep(2);
 
         release_intersection(intersection);
