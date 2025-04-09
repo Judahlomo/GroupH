@@ -55,11 +55,45 @@ int main() {
     std::cout << "Setting up mock train system IPC...\n";
     
     setupIPC();
+    //Shared memory segments
+    int shmid = shmget(SHM_KEY, sizeof(ResourceAllocationTable), IPC_CREAT | 0666);
+    if (shmid == -1) {
+        perror("shmget failed");
+        exit(1);
+    }
+    //Shared Memory table
+    ResourceAllocationTable* table = (ResourceAllocationTable*)shmat(shmid, NULL, 0);
+    if (table == (void*)-1) {
+        perror("shmat failed");
+        exit(1);
+    }
+    //Initializes table mutexes
+    pthread_mutexattr_t mattr;
+    pthread_mutexattr_init(&mattr);
+    pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&table->table_mutex, &mattr);
+    //Creates intersections
+    for (int i = 0; i < table->num_intersections; i++) {
+        Intersection& inter = table->intersections[i];
+        
+        // Initialize the access control mutex
+        pthread_mutex_init(&inter.mutex, &mattr);
+        
+        // Initialize semaphore if needed
+        if (inter.type == 1) { // Semaphore type
+            sem_init(&inter.semaphore, 1, inter.capacity);
+        }
+        
+        inter.current_count = 0;
+        memset(inter.holding_trains, 0, sizeof(inter.holding_trains));
+    }
+    //Message queues
+    int msgid = msgget(MSG_Q_KEY, IPC_CREAT | 0666);
+    if (msgid == -1) {
+        perror("msgget failed");
+        exit(1);
+    }
 
-    /* Still have to fork server and train processes 
-    and have trains request intersections from message queue 
-    and let parent server manages intersection access via shared memory
-    */
     std::cout << "Press Enter to shutdown";
     std::cin.ignore();
     
