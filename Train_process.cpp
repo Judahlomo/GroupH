@@ -29,28 +29,40 @@ std::vector<std::string> route;
 std::string trainName;
 
 // Sends ACQUIRE request to parent
-void request_intersection(const std::string& intersectionName) {
+void request_intersection(const std::string& intersectionName, pid_t pid) {
     TrainMessage msg;
-    msg.mtype = 1; // Can be train ID in future
-    snprintf(msg.mtext, sizeof(msg.mtext), "ACQUIRE %s %s", trainName.c_str(), intersectionName.c_str());
+    msg.mtype = 1; // server listens on 1
+    snprintf(msg.mtext, sizeof(msg.mtext), "ACQUIRE %s %d %s", trainName.c_str(), pid, intersectionName.c_str());
 
     msgsnd(msgid, &msg, sizeof(msg.mtext), 0);
 }
 
 // Sends RELEASE request to parent
-void release_intersection(const std::string& intersectionName) {
+void release_intersection(const std::string& intersectionName, pid_t pid) {
     TrainMessage msg;
     msg.mtype = 1;
-    snprintf(msg.mtext, sizeof(msg.mtext), "RELEASE %s %s", trainName.c_str(), intersectionName.c_str());
+    snprintf(msg.mtext, sizeof(msg.mtext), "RELEASE %s %d %s", trainName.c_str(), pid, intersectionName.c_str());
 
     msgsnd(msgid, &msg, sizeof(msg.mtext), 0);
 }
 
-// Waits for GRANT response from parent
-void wait_for_grant() {
+// Waits for GRANT response from parent (filtered by this train's PID)
+void wait_for_grant(pid_t pid) {
     TrainMessage response;
-    msgrcv(msgid, &response, sizeof(response.mtext), 1, 0);
-    std::cout << trainName << ": " << response.mtext << std::endl;
+    while (true) {
+        msgrcv(msgid, &response, sizeof(response.mtext), pid, 0);
+        std::string responseText(response.mtext);
+        std::cout << trainName << ": " << responseText << std::endl;
+
+        if (responseText.find("GRANT") != std::string::npos) {
+            break;
+        } else if (responseText.find("WAIT") != std::string::npos) {
+            sleep(1); // optional backoff before retrying
+        } else if (responseText.find("DENY") != std::string::npos) {
+            std::cerr << trainName << ": Access denied. Exiting.\n";
+            exit(1);
+        }
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -60,6 +72,7 @@ int main(int argc, char* argv[]) {
     }
 
     trainName = argv[1];
+    pid_t pid = getpid();
 
     // TODO: Pull actual route info from shared memory or arguments
     // Temporary hardcoded example
@@ -75,15 +88,14 @@ int main(int argc, char* argv[]) {
     std::cout << trainName << ": Starting route...\n";
 
     for (const auto& intersection : route) {
-        request_intersection(intersection);
-        wait_for_grant();
+        request_intersection(intersection, pid);
+        wait_for_grant(pid);
 
-        // TODO: Simulate traversal delay (e.g., sleep(2)
-        sleep(2);
+        sleep(2); // Simulate traversal
 
-        release_intersection(intersection);
+        release_intersection(intersection, pid);
     }
-
+    
     std::cout << trainName << ": Finished route.\n";
     return 0;
 }
