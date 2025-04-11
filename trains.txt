@@ -1,0 +1,7 @@
+// Ryeleigh Avila
+// Defines each train name and sequence of intersections it will pass through.
+
+Train1:IntersectionA,IntersectionB,IntersectionC
+Train2:IntersectionB,IntersectionD,IntersectionE
+Train3:IntersectionC,IntersectionD,IntersectionA
+Train4:IntersectionE,IntersectionB,IntersectionD
