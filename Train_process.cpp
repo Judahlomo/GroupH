@@ -21,20 +21,21 @@ struct Intersection {
     int occupiedBy;
 };
 
-// Global message queue ID
 int msgid;
-
-// Placeholder for route data (to be populated via shared memory or arguments)
 std::vector<std::string> route;
 std::string trainName;
 
 // Sends ACQUIRE request to parent
 void request_intersection(const std::string& intersectionName, pid_t pid) {
     TrainMessage msg;
-    msg.mtype = 1; // server listens on 1
+    msg.mtype = 1; // Parent listens on type 1
     snprintf(msg.mtext, sizeof(msg.mtext), "ACQUIRE %s %d %s", trainName.c_str(), pid, intersectionName.c_str());
 
-    msgsnd(msgid, &msg, sizeof(msg.mtext), 0);
+    if (msgsnd(msgid, &msg, sizeof(msg.mtext), 0) == -1) {
+        perror("msgsnd failed (ACQUIRE)");
+        exit(1);
+    }
+    std::cout << trainName << ": Requested " << intersectionName << std::endl;
 }
 
 // Sends RELEASE request to parent
@@ -43,21 +44,29 @@ void release_intersection(const std::string& intersectionName, pid_t pid) {
     msg.mtype = 1;
     snprintf(msg.mtext, sizeof(msg.mtext), "RELEASE %s %d %s", trainName.c_str(), pid, intersectionName.c_str());
 
-    msgsnd(msgid, &msg, sizeof(msg.mtext), 0);
+    if (msgsnd(msgid, &msg, sizeof(msg.mtext), 0) == -1) {
+        perror("msgsnd failed (RELEASE)");
+        exit(1);
+    }
+    std::cout << trainName << ": Released " << intersectionName << std::endl;
 }
 
 // Waits for GRANT response from parent (filtered by this train's PID)
 void wait_for_grant(pid_t pid) {
     TrainMessage response;
     while (true) {
-        msgrcv(msgid, &response, sizeof(response.mtext), pid, 0);
+        if (msgrcv(msgid, &response, sizeof(response.mtext), pid, 0) == -1) {
+            perror("msgrcv failed");
+            exit(1);
+        }
+
         std::string responseText(response.mtext);
         std::cout << trainName << ": " << responseText << std::endl;
 
         if (responseText.find("GRANT") != std::string::npos) {
             break;
         } else if (responseText.find("WAIT") != std::string::npos) {
-            sleep(1); // optional backoff before retrying
+            sleep(1); // Retry after delay
         } else if (responseText.find("DENY") != std::string::npos) {
             std::cerr << trainName << ": Access denied. Exiting.\n";
             exit(1);
@@ -66,19 +75,19 @@ void wait_for_grant(pid_t pid) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <TrainName>\n";
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <TrainName> <Intersection1> [Intersection2] ...\n";
         return 1;
     }
 
     trainName = argv[1];
     pid_t pid = getpid();
 
-    // TODO: Pull actual route info from shared memory or arguments
-    // Temporary hardcoded example
-    route = {"IntersectionA", "IntersectionB", "IntersectionC"};
+    // Populate route from command-line args
+    for (int i = 2; i < argc; ++i) {
+        route.emplace_back(argv[i]);
+    }
 
-    // Connect to message queue
     msgid = msgget(MSG_Q_KEY, 0666);
     if (msgid == -1) {
         perror("msgget failed in train process");
@@ -90,12 +99,10 @@ int main(int argc, char* argv[]) {
     for (const auto& intersection : route) {
         request_intersection(intersection, pid);
         wait_for_grant(pid);
-
         sleep(2); // Simulate traversal
-
         release_intersection(intersection, pid);
     }
-    
+
     std::cout << trainName << ": Finished route.\n";
     return 0;
 }
