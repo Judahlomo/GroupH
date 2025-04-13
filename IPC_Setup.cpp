@@ -13,13 +13,16 @@ struct TrainMessage {
 
 struct Intersection {
     bool available;
-    int occupiedBy; //use trainID int
+    int occupiedBy; //use trainID int, -1 is available for occupation
 };
 
-//Example IPC keys can be changed
+//Example IPC keys can be changed, must match parent process
 const key_t SHM_KEY = 1234;
 const key_t MSG_Q_KEY = 5678;
 
+//Sets global variables for the parent process
+int msgid;
+Intersection* intersectionShm = nullprt:
 
 void setupIPC() {
     //shared memory sections for intersections
@@ -49,6 +52,26 @@ void setupIPC() {
     std::cout << "IPC setup complete:\n";
     std::cout << "- Shared Memory ID: " << shmid << "\n";
     std::cout << "- Message Queue ID: " << msgid << "\n";
+}
+
+void cleanupIPC() {
+    //Detachs shared memory
+    if (intersectionShm != nullptr) {
+        shmdt(intersectionShm);
+    }
+    
+    //Removes shared memory segment
+    int shmid = shmget(SHM_KEY, sizeof(Intersection), 0666);
+    if (shmid != -1) {
+        shmctl(shmid, IPC_RMID, NULL);
+    }
+
+    //Removes message queue
+    if (msgid != -1) {
+        msgctl(msgid, IPC_RMID, NULL);
+    }
+    
+    std::cout << "Cleaned up IPC resources\n";
 }
 
 int main() {
