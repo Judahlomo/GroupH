@@ -5,15 +5,13 @@
 #include <vector>
 #include <unordered_map>
 #include <set>
+#include <tuple>
+#include <logger.cpp>
 
 using namespace std;
-int countA = 0;
-int countB = 0;
-int countC = 0;
-int countD = 0;
-int countE = 0;
-
-
+int count = 0;
+set<std::tuple<const string&, const string&>> callHistory;
+bool hasCalled = false;
 
 // Structure for the RAG
 class ResourceAllocationGraph {
@@ -22,7 +20,21 @@ public:
 
     // Add a request edge: Train -> Intersection
     void addRequest(const string& train, const string& intersection) {
-        graph[train].insert(intersection);   
+        hasCalled = hasBeenCalledBefore(train, intersection);
+        if (hasCalled == true) {
+            count++;
+            if (count > 3) {
+                // Circular Wait
+                log_event("Deadlock Detected: Circular Wait");
+                count = 0;
+            }
+            else {
+                graph[train].insert(intersection); 
+            }
+        }
+        else {
+            graph[train].insert(intersection); 
+        }
     }
 
     // Add an allocation edge: Intersection -> Train
@@ -40,6 +52,16 @@ public:
         }
     }
 };
+
+bool hasBeenCalledBefore(const string& train, const string& intersection) {
+    std::tuple<const string&, const string&> key = std::make_tuple(train, intersection);
+    if (callHistory.find(key) != callHistory.end()) {
+        return true;
+    } else {
+        callHistory.insert(key);
+        return false;
+    }
+}
 
 int main() {
     ResourceAllocationGraph rag;
@@ -62,20 +84,21 @@ int main() {
     };
 
     // Simulate RAG (will be removed in the future)
-    for (const auto& train : trainPaths) {
-        const string& trainName = train.first;
-        const vector<string>& path = train.second;
-
-        for (size_t i = 0; i < path.size(); ++i) {
-            if (i == 0) {
-                rag.addRequest(trainName, path[i]);
+    for (size_t j = 0; j < 3; j++){
+        for (const auto& train : trainPaths) {
+            const string& trainName = train.first;
+            const vector<string>& path = train.second;
+            
+            if (j == 0) {
+                rag.addRequest(trainName, path[j]);
             } else {
-                rag.addAllocation(path[i - 1], trainName);
-                rag.addRequest(trainName, path[i]);
+                rag.addAllocation(path[j - 1], trainName);
+                rag.addRequest(trainName, path[j]);
             }
+            rag.addAllocation(path.back(), trainName);
         }
-        rag.addAllocation(path.back(), trainName);
     }
+
     rag.printGraph();
 
     return 0;
