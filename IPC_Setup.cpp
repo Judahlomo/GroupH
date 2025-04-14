@@ -9,11 +9,20 @@
 struct TrainMessage {
     long mtype; //use trainID
     char mtext[100]; //messages
+    int request_type; //0=ACQUIRE, 1=RELEASE
+    int intersection_id; //Which crossing
+};
+
+struct ResourceAllocationTable {
+    int num_intersections; //Total crossings in system
+    pthread_mutex_t table_mutex; //Lock for the whole table
+    Intersection intersections[10]; //Array of crossings
 };
 
 struct Intersection {
     bool available;
     int occupiedBy; //use trainID int, -1 is available for occupation
+    pthread_mutex_t mutex; //Synchronization for this intersection
 };
 
 //Example IPC keys can be changed, must match parent process
