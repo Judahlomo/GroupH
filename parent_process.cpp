@@ -1,25 +1,18 @@
-// Parent_process.cpp - Roberts Kovalonoks
+// parent_process.cpp - Roberts Kovalonoks
+
 #include <iostream>
 #include <vector>
 #include <string>
-#include <map>
 #include <unistd.h>
-#include <cstring>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/msg.h>
-#include "logger.h"              // Ryeleigh's module
-#include "deadlock_detection.h"  // Yosep's module (future)
-#include "deadlock_resolution.h" // Mohammed's module (future)
+#include <pthread.h>
+#include "logger.h"
 
-// Constants from ipc_setup.cpp (Joey's module)
-// Defined locally for now (must match ipc_setup.cpp)
 #define SHM_KEY 1234
 #define MSG_Q_KEY 5678
-
-#ifndef MSG_Q_KEY
-#define MSG_Q_KEY 5678
-#endif
+#define CLOCK_SHM_KEY 2468 // SimClock key - unique
 
 struct Intersection {
     bool available;
@@ -32,76 +25,89 @@ struct TrainMessage {
 };
 
 // Globals
-int sim_time = 0;
-std::vector<std::string> trainList;
-int msgid;
 Intersection* intersectionShm = nullptr;
+SimClock* clock_ptr = nullptr;
+int msgid;
 
-// 1. Load config files
-void parse_config_files();
-
-// 2. Setup IPC using Joey's setupIPC function
-void setupIPC(); // from ipc_setup.cpp
-
+// Attach & setup shared memory (Intersections + SimClock)
 void initialize_ipc() {
-    setupIPC(); // Calls Joey's function to create shm & msg queue
-
-    // Manually attach to shared memory
+    // Attach Intersections shared memory
     int shmid = shmget(SHM_KEY, sizeof(Intersection), 0666);
     if (shmid == -1) {
-        perror("shmget (read-only) failed");
+        perror("shmget failed for Intersection");
         exit(1);
     }
 
     intersectionShm = (Intersection*)shmat(shmid, NULL, 0);
     if (intersectionShm == (void*)-1) {
-        perror("shmat failed in parent");
+        perror("shmat failed for Intersection");
         exit(1);
     }
 
+    // Attach SimClock shared memory
+    int clock_shmid = shmget(CLOCK_SHM_KEY, sizeof(SimClock), IPC_CREAT | 0666);
+    if (clock_shmid == -1) {
+        perror("shmget failed for SimClock");
+        exit(1);
+    }
+
+    clock_ptr = (SimClock*)shmat(clock_shmid, NULL, 0);
+    if (clock_ptr == (void*)-1) {
+        perror("shmat failed for SimClock");
+        exit(1);
+    }
+
+    // Initialize SimClock
+    clock_ptr->sim_time = 0;
+    pthread_mutexattr_t mattr;
+    pthread_mutexattr_init(&mattr);
+    pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&clock_ptr->time_mutex, &mattr);
+
+    // Init logger
+    logger_init(clock_ptr);
+    log_event("SERVER: Logger initialized and SimClock attached");
+
+    // Attach Message Queue
     msgid = msgget(MSG_Q_KEY, 0666);
     if (msgid == -1) {
-        perror("msgget failed in parent");
+        perror("msgget failed");
         exit(1);
     }
 
-    log_event(sim_time++, "SERVER: IPC attached in parent_process.cpp");
+    log_event("SERVER: IPC resources attached");
 }
 
-// 3. Fork train processes (each executes train_process)
-void fork_trains();
+// Main event loop for listening to Train Messages
+void run_server() {
+    log_event("SERVER: Entering server loop");
 
-// 4. Main server loop
-void run_server();
+    while (true) {
+        TrainMessage msg;
+        if (msgrcv(msgid, &msg, sizeof(msg.mtext), 1, 0) == -1) {
+            perror("msgrcv failed");
+            exit(1);
+        }
 
-// 5. Handle ACQUIRE/RELEASE requests (message queue listener)
-void handle_train_message(const TrainMessage& msg);
+        std::string message(msg.mtext);
+        log_event("SERVER: Received - " + message);
 
-// 6. Manage shared memory state (update locks, semaphores)
-void update_intersection_state();
-
-// 7. Call deadlock detection + resolution if needed
-void check_and_resolve_deadlock() {
-    // Call Yosep's placeholder deadlock detection logic
-    bool deadlock = false; // Default value
-
-    // For now, simulate a basic call to a dummy function (to be replaced)
-    if (deadlock == true) {
-        log_event(sim_time++, "SERVER: Deadlock detected.");
-        // Placeholder: eventually call resolve_deadlock() from Mohammed's module
+        if (message == "EXIT") {
+            log_event("SERVER: Exit command received, shutting down");
+            break;
+        }
     }
 }
 
 // Entry point
 int main() {
-    log_event(sim_time++, "SERVER: Starting Parent Process");
+    std::cout << "Parent Process Starting...\n";
 
-    parse_config_files();
     initialize_ipc();
-    fork_trains();
-
-    log_event(sim_time++, "SERVER: All trains forked. Entering event loop");
     run_server();
 
+    logger_close();
+
+    std::cout << "Parent Process Terminated.\n";
     return 0;
 }
