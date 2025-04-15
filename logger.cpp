@@ -12,7 +12,7 @@
   *logger_init(SimClock* clock): Initializes logger and opens log file
   *log_event(string message): Logs a single event with a +1 time increment
   *log_delay(int delay, string message): Logs event with custom delay
-  *logger_close(): Closes the log file
+  *logger_close(): Closes the log file here
  */
  
 // NOTE group H:
