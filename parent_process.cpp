@@ -24,10 +24,9 @@ struct TrainMessage {
     char mtext[100];
 };
 
-// Globals
+// Globals (defined only here)
 Intersection* intersectionShm = nullptr;
-SimClock* clock_ptr = nullptr;
-int msgid;
+int msgid;  // OK to keep this global
 
 // Attach & setup shared memory (Intersections + SimClock)
 void initialize_ipc() {
@@ -51,21 +50,21 @@ void initialize_ipc() {
         exit(1);
     }
 
-    clock_ptr = (SimClock*)shmat(clock_shmid, NULL, 0);
-    if (clock_ptr == (void*)-1) {
+    SimClock* shared_clock = (SimClock*)shmat(clock_shmid, NULL, 0);
+    if (shared_clock == (void*)-1) {
         perror("shmat failed for SimClock");
         exit(1);
     }
 
     // Initialize SimClock
-    clock_ptr->sim_time = 0;
+    shared_clock->sim_time = 0;
     pthread_mutexattr_t mattr;
     pthread_mutexattr_init(&mattr);
     pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
-    pthread_mutex_init(&clock_ptr->time_mutex, &mattr);
+    pthread_mutex_init(&shared_clock->time_mutex, &mattr);
 
-    // Init logger
-    logger_init(clock_ptr);
+    // Init logger with shared SimClock
+    logger_init(shared_clock);
     log_event("SERVER: Logger initialized and SimClock attached");
 
     // Attach Message Queue
