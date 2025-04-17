@@ -1,8 +1,0 @@
-// Ryeleigh Avila
-// Lists each intersection and its capacity, which determines mutex or semaphore.
-
-IntersectionA:1
-IntersectionB:2
-IntersectionC:1
-IntersectionD:3
-IntersectionE:1
