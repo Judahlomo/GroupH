@@ -48,7 +48,7 @@ int get_intersection_index(const std::string& name) {
 
 // Initialize IPC and logger
 void initialize_ipc() {
-    setupIPC(resourceTable);  // ✅ Reuse setup
+    setupIPC(resourceTable);
 
     int clk_id = shmget(CLOCK_SHM_KEY, sizeof(SimClock), IPC_CREAT | 0666);
     if (clk_id == -1) { perror("shmget clock failed"); exit(1); }
