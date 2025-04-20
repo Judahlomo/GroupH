@@ -1,1 +1,27 @@
-
+[00:00:01] SERVER: Logger and SimClock initialized
+[00:00:02] SERVER: IPC setup complete
+[00:00:03] SERVER: Train processes launched
+[00:00:04] SERVER: GRANTED IntersectionB to Train2 (semaphore slot)
+[00:00:05] SERVER: GRANTED IntersectionE to Train4
+[00:00:06] SERVER: GRANTED IntersectionA to Train1
+[00:00:07] SERVER: GRANTED IntersectionC to Train3
+[00:00:08] SERVER: Train2 released IntersectionB (semaphore)
+[00:00:09] SERVER: GRANTED IntersectionD to Train2 (semaphore slot)
+[00:00:10] SERVER: Train4 released IntersectionE (mutex)
+[00:00:11] SERVER: Train1 released IntersectionA (mutex)
+[00:00:12] SERVER: GRANTED IntersectionB to Train4 (semaphore slot)
+[00:00:13] SERVER: GRANTED IntersectionB to Train1 (semaphore slot)
+[00:00:14] SERVER: Train3 released IntersectionC (mutex)
+[00:00:15] SERVER: GRANTED IntersectionD to Train3 (semaphore slot)
+[00:00:16] SERVER: Train2 released IntersectionD (semaphore)
+[00:00:17] SERVER: GRANTED IntersectionE to Train2
+[00:00:18] SERVER: Train4 released IntersectionB (semaphore)
+[00:00:19] SERVER: Train1 released IntersectionB (semaphore)
+[00:00:20] SERVER: GRANTED IntersectionD to Train4 (semaphore slot)
+[00:00:21] SERVER: GRANTED IntersectionC to Train1
+[00:00:22] SERVER: Train3 released IntersectionD (semaphore)
+[00:00:23] SERVER: GRANTED IntersectionA to Train3
+[00:00:24] SERVER: Train2 released IntersectionE (mutex)
+[00:00:25] SERVER: Train4 released IntersectionD (semaphore)
+[00:00:26] SERVER: Train1 released IntersectionC (mutex)
+[00:00:27] SERVER: Train3 released IntersectionA (mutex)
