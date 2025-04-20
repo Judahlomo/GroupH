@@ -16,6 +16,8 @@
   shared clock. This helps keep the simulation organized and easy to follow.
 */
 
+#include <fstream>
+#include <sstream>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -30,7 +32,6 @@
 
 #include "logger.h"
 #include "structures.h"
-#include "ipc_setup.h"
 
 // Brings in the logging tools so we can record events and actions during the simulation.
 #define SHM_KEY 1234
@@ -38,6 +39,8 @@
 #define MSG_Q_KEY 5678
 // Gives access to setup functions for shared memory, semaphores, message queues, and other IPC components.
 #define CLOCK_SHM_KEY 2468
+
+int msgid;
 
 /* Summary:
 * This code defines a structure named TrainMessage that is used for inter-process
@@ -51,13 +54,22 @@ struct TrainMessage {
 };
 
 /**
+ * Sets up the Inter-Process Communication (IPC) mechanism by initializing
+ * the provided Resource Allocation Table.
+ * 
+ * table A reference to a pointer of ResourceAllocationTable that will be
+ * initialized and configured for IPC. The caller is responsible for ensuring
+ * the pointer is valid and properly managed.
+ */
+void setupIPC(ResourceAllocationTable*& table);
+
+/**
  * Pointer to the ResourceAllocationTable object
  * This pointer is used to manage and track the allocation of resources
  * within the system. It is initialized to nullptr and should be assigned
  * a valid ResourceAllocationTable instance before use.
  */
 ResourceAllocationTable* resourceTable = nullptr;
-
 
 /**
  * Splits a given string into a vector of words based on whitespace.
@@ -91,8 +103,7 @@ int get_intersection_index(const std::string& name) {
 
 // Initialize IPC and logger
 void initialize_ipc() {
-    setupIPC(resourceTable);
-
+    setupIPC(resourceTable);  // ✅ Reuse setup
     int clk_id = shmget(CLOCK_SHM_KEY, sizeof(SimClock), IPC_CREAT | 0666);
     if (clk_id == -1) { perror("shmget clock failed"); exit(1); }
 
@@ -206,50 +217,68 @@ void handle_release(const std::string& train, pid_t pid, const std::string& inte
     }
 }
 
+/**
+ * Loads train routes from a file and parses them into a vector of vectors of strings.
+ * The input file should have each line formatted as follows:
+ * <route_name>:<station1>,<station2>,<station3>,...
+ * 
+ * Example line:
+ * TrainA:Station1,Station2,Station3
+ * 
+ * This function reads the file line by line, splits each line into a route name and its stations,
+ * and stores them in a vector of strings. Each route is represented as a vector of strings, 
+ * where the first element is the route name and the subsequent elements are the station names.
+ * 
+ * The file path to the input file containing train routes.
+ * A vector of vectors of strings, where each inner vector represents a train route.
+ * The first element of each inner vector is the route name, followed by the station names.
+ */
+std::vector<std::vector<std::string>> load_trains(const std::string& path) {
+    std::ifstream file(path);
+    std::vector<std::vector<std::string>> entries;
+    std::string line;
+
+    while (std::getline(file, line)) {
+        std::vector<std::string> route;
+        std::size_t cut = line.find(':');
+        if (cut == std::string::npos) continue;
+
+        route.push_back(line.substr(0, cut));
+
+        std::stringstream ss(line.substr(cut + 1));
+        std::string token;
+        while (std::getline(ss, token, ',')) {
+            route.push_back(token);
+        }
+
+        entries.push_back(route);
+    }
+
+    return entries;
+}
 
 /* This function is responsible for starting up several train processes.
 Each train will follow its own route that goes through multiple intersections. */
 void launch_trains() {
-    // Here, we define a list of routes. Each route is a list of strings:
-    // the name of the train followed by the intersections it needs to pass through.
-    std::vector<std::vector<std::string>> trainRoutes = {
-        {"Train1", "IntersectionA", "IntersectionB", "IntersectionC"},
-        {"Train2", "IntersectionB", "IntersectionD", "IntersectionE"},
-        {"Train3", "IntersectionC", "IntersectionD", "IntersectionA"},
-        {"Train4", "IntersectionE", "IntersectionB", "IntersectionD"}
-    };
+    auto trainRoutes = load_trains("trains.txt");
 
-    // We loop through each route to create a separate process for each train.
     for (const auto& route : trainRoutes) {
         pid_t pid = fork();
-
-        // If we're in the child process, we prepare to launch the train
         if (pid == 0) {
             std::vector<char*> args;
             args.push_back((char*)"./train_process");
-
-            // Then we add all the route details (train name + intersections)
             for (const auto& r : route)
                 args.push_back(const_cast<char*>(r.c_str()));
-
-            // Null pointer at the end to mark the end of arguments (required by execv)
             args.push_back(nullptr);
 
-            // Replace this process image with a new program ("train_process")
             execv("./train_process", args.data());
-
-            // If something goes wrong with execv, print an error message
             perror("execv failed");
-            exit(1); // Exit child process if execv fails
+            exit(1);
         }
     }
 }
 
-/* Summary: This file implements the main server loop which launches train processes,
-logs the event, and continually listens for messages on a message queue.  
-Upon receiving a message, it parses the message to extract the message type, 
-train name, process ID, and intersection. Based on the type (ACQUIRE or RELEASE), 
-the corresponding handler function is invoked to process the request */
+// We loop through each route to create a separate process for each train.
 void run_server() {
     launch_trains();
     log_event("SERVER: Train processes launched");
@@ -275,14 +304,11 @@ void run_server() {
     }
 }
 
-
-/**
- * This function serves as a Entry point, initializes inter-process communication (IPC),
- * starts the server, and ensures proper cleanup by closing the logger
- * before terminating. It provides a structured flow for the parent
- * process's lifecycle.
- *
- */
+/* Summary: This file implements the main server loop which launches train processes,
+logs the event, and continually listens for messages on a message queue.  
+Upon receiving a message, it parses the message to extract the message type, 
+train name, process ID, and intersection. Based on the type (ACQUIRE or RELEASE), 
+the corresponding handler function is invoked to process the request */
 int main() {
     std::cout << "Parent Process Starting...\n";
     initialize_ipc();
