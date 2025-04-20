@@ -33,5 +33,5 @@ g++ -o train_process Train_process.cpp -pthread
 Make sure inetrsection.txt and trains.txtx are in same directory
 
 
-****Output:
-Still testing ans working on it
+****Output (simulation.log):
+The output will give all processes. Additionally to access simulation.log run command: cat simulation.log OR nano simulation.log to see results!
