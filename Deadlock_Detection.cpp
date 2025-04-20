@@ -1,4 +1,6 @@
+// Deadlock_Detection.cpp
 // Made by Yosep Lazar
+// Description: functions included to build a RAG and detect circular waits using it.
 
 #include <iostream>
 #include <unordered_map>
