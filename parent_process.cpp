@@ -1,3 +1,21 @@
+/*
+  Course: CS4323, Spring 2025, Dr. Shital Joshi
+  Group Project: Multi-Train Railway Simulation (Parent Process)
+  Author: Roberts Kovalonoks
+
+  Description:
+  This file runs the main controller for the train simulation. It sets up shared memory,
+  the message queue, and a shared clock that all processes use. It waits for requests
+  from the train programs to either take or release intersections.
+
+  Intersections are protected with mutexes (for single access) or semaphores (for shared access).
+  The parent also keeps track of what each train is holding or waiting for using a graph. If a
+  deadlock is found, it picks one train to stop and clears it so the rest can move on.
+
+  All actions, like grants and releases, are written to a log file with timestamps from the
+  shared clock. This helps keep the simulation organized and easy to follow.
+*/
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -14,18 +32,43 @@
 #include "structures.h"
 #include "ipc_setup.h"
 
+// Brings in the logging tools so we can record events and actions during the simulation.
 #define SHM_KEY 1234
+// Loads definitions for data structures like TrainMessage and Intersection that we'll be working with.
 #define MSG_Q_KEY 5678
+// Gives access to setup functions for shared memory, semaphores, message queues, and other IPC components.
 #define CLOCK_SHM_KEY 2468
 
+/* Summary:
+* This code defines a structure named TrainMessage that is used for inter-process
+* communication, likely in a message queuing context. The structure contains:
+*   - mtype: a long integer representing the type of the message.
+*   - mtext: a character array of 100 characters intended to hold the message text. 
+*/
 struct TrainMessage {
     long mtype;
     char mtext[100];
 };
 
+/**
+ * Pointer to the ResourceAllocationTable object
+ * This pointer is used to manage and track the allocation of resources
+ * within the system. It is initialized to nullptr and should be assigned
+ * a valid ResourceAllocationTable instance before use.
+ */
 ResourceAllocationTable* resourceTable = nullptr;
 
-// Helper: split message by spaces
+
+/**
+ * Splits a given string into a vector of words based on whitespace.
+ *
+ * This function takes an input string and splits it into individual words
+ * using whitespace as the delimiter. The resulting words are stored in a
+ * vector of strings and returned.
+ *
+ * parameters: input The input string to be split into words.
+ * return: A vector of strings, where each element is a word from the input string.
+ */
 std::vector<std::string> split_message(const std::string& input) {
     std::istringstream ss(input);
     std::string word;
@@ -95,7 +138,11 @@ void remove_holding_train(Intersection& inter, const std::string& trainName) {
     }
 }
 
-// Handle ACQUIRE request
+/*
+  This function handles a train's request to acquire an intersection.
+  Depending on whether it's a mutex or semaphore type, it checks availability,
+  updates the state, logs the result, and sends either a GRANT or WAIT response.
+*/
 void handle_acquire(const std::string& train, pid_t pid, const std::string& intersectionName) {
     int index = get_intersection_index(intersectionName);
     if (index == -1) {
@@ -131,7 +178,11 @@ void handle_acquire(const std::string& train, pid_t pid, const std::string& inte
     }
 }
 
-// Handle RELEASE request
+/*
+  This function handles when a train is done with an intersection.
+  It frees up the resource—unlocking a mutex or posting a semaphore—
+  updates the shared state, and logs the release event.
+*/
 void handle_release(const std::string& train, pid_t pid, const std::string& intersectionName) {
     int index = get_intersection_index(intersectionName);
     if (index == -1) {
@@ -155,8 +206,12 @@ void handle_release(const std::string& train, pid_t pid, const std::string& inte
     }
 }
 
-// Launch 4 child train processes
+
+/* This function is responsible for starting up several train processes.
+Each train will follow its own route that goes through multiple intersections. */
 void launch_trains() {
+    // Here, we define a list of routes. Each route is a list of strings:
+    // the name of the train followed by the intersections it needs to pass through.
     std::vector<std::vector<std::string>> trainRoutes = {
         {"Train1", "IntersectionA", "IntersectionB", "IntersectionC"},
         {"Train2", "IntersectionB", "IntersectionD", "IntersectionE"},
@@ -164,23 +219,37 @@ void launch_trains() {
         {"Train4", "IntersectionE", "IntersectionB", "IntersectionD"}
     };
 
+    // We loop through each route to create a separate process for each train.
     for (const auto& route : trainRoutes) {
         pid_t pid = fork();
+
+        // If we're in the child process, we prepare to launch the train
         if (pid == 0) {
             std::vector<char*> args;
             args.push_back((char*)"./train_process");
+
+            // Then we add all the route details (train name + intersections)
             for (const auto& r : route)
                 args.push_back(const_cast<char*>(r.c_str()));
+
+            // Null pointer at the end to mark the end of arguments (required by execv)
             args.push_back(nullptr);
 
+            // Replace this process image with a new program ("train_process")
             execv("./train_process", args.data());
+
+            // If something goes wrong with execv, print an error message
             perror("execv failed");
-            exit(1);
+            exit(1); // Exit child process if execv fails
         }
     }
 }
 
-// Main server loop
+/* Summary: This file implements the main server loop which launches train processes,
+logs the event, and continually listens for messages on a message queue.  
+Upon receiving a message, it parses the message to extract the message type, 
+train name, process ID, and intersection. Based on the type (ACQUIRE or RELEASE), 
+the corresponding handler function is invoked to process the request */
 void run_server() {
     launch_trains();
     log_event("SERVER: Train processes launched");
@@ -206,7 +275,14 @@ void run_server() {
     }
 }
 
-// Entry point
+
+/**
+ * This function serves as a Entry point, initializes inter-process communication (IPC),
+ * starts the server, and ensures proper cleanup by closing the logger
+ * before terminating. It provides a structured flow for the parent
+ * process's lifecycle.
+ *
+ */
 int main() {
     std::cout << "Parent Process Starting...\n";
     initialize_ipc();
