@@ -25,7 +25,8 @@ Train1:IntersectionA,IntersectionB,IntersectionC
 
 
 ****Compiling (Compile program, run): 
-g++ -o railway_sim parent_process.cpp IPC_Setup.cpp Train_process.cpp logger.cpp -pthread
+g++ -o railway_sim parent_process.cpp ipc_setup.cpp logger.cpp deadlock_resolution.cpp Deadlock_Detection.cpp -pthread
+g++ -o train_process Train_process.cpp -pthread
 
 *****Running(start simulation):
 ./railway_sim
