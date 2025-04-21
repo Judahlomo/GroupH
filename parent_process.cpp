@@ -1,7 +1,8 @@
 /*
   Course: CS4323, Spring 2025, Dr. Shital Joshi
-  Group Project: Multi-Train Railway Simulation (Parent Process)
+  Group H Project: Multi-Train Railway Simulation (Parent Process)
   Author: Roberts Kovalonoks
+  Date: 04/20/2025
 
   Description:
   This file runs the main controller for the train simulation. It sets up shared memory,
